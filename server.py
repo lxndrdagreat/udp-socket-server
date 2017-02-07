@@ -55,7 +55,7 @@ class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
             del self._heartbeats[client]
             self.clients.remove(client)
             # trigger disconnect event
-            self._trigger('disconnected', None, client_address)
+            self._trigger('disconnected', None, client)
 
     def _trigger(self, event, data, addr):
         if event in self.handlers:
