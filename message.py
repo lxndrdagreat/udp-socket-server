@@ -5,7 +5,7 @@ class MessageProtocol:
     def create(self, msg_type, payload):
         msg = {
             "t": msg_type,
-            "p": payload
+            "p": json.dumps(payload)
         }
         msg_json = "{}\n".format(json.dumps(msg))
         return bytes(msg_json, "utf-8")
