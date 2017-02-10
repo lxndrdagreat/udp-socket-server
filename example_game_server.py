@@ -10,11 +10,17 @@ import json
 
 lock = threading.Lock()
 
-class PlayerClient():
+
+class PlayerClient:
     def __init__(self, client_addr):
         self.uuid = uuid.uuid4().hex
-        self.color = (random.uniform(0.0, 1.0), random.uniform(0.0, 1.0), random.uniform(0.0, 1.0))
-        self.position = [0.0, 0.0]
+        self.color = (
+            random.uniform(0.0, 1.0),
+            random.uniform(0.0, 1.0),
+            random.uniform(0.0, 1.0))
+        self.position = [
+            random.uniform(-10.0, 10.0),
+            random.uniform(-10.0, 10.0)]
         self.rotation = 0.0
         self._client_addr = client_addr
 
@@ -80,22 +86,22 @@ def player_movement(msg, socket):
     if socket not in CONNECTED_CLIENTS:
         return
 
-    print("PLAYER MOVE: {}".format(msg))
+    # print("PLAYER MOVE: {}".format(msg))
 
     player = CONNECTED_CLIENTS[socket]
     movement = json.loads(msg)
     player.movement = movement
 
 
-def game_loop(delta):
+def game_loop(dt):
 
     updated_players = []
 
     with lock:
         for socket, player in CONNECTED_CLIENTS.items():
             if player.movement[0] != 0 or player.movement[1] != 0:
-                player.position[0] += player.movement[0] * player.speed * delta
-                player.position[1] += player.movement[1] * player.speed * delta
+                player.position[0] += player.movement[0] * player.speed * dt
+                player.position[1] += player.movement[1] * player.speed * dt
                 if player.position[0] < -20:
                     player.position[0] = -20
                 elif player.position[0] > 20:
@@ -106,13 +112,10 @@ def game_loop(delta):
                     player.position[1] = 10
                 updated_players.append(player.as_dict())
 
-
     if len(updated_players) > 0:
         # print("sending player updates for {} players".format(len(updated_players)))
         udp_server.send_all("players", updated_players)
 
-    # spam test
-    #udp_server.send_all("message", "hello!")
 
 if __name__ == "__main__":    
     last_time = time.time()
@@ -121,6 +124,7 @@ if __name__ == "__main__":
     server_thread.daemon = True
     server_thread.start()
 
+    # for a fixed update tick
     loop_time = 1.0 / 60
     loop_timer = 0
 

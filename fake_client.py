@@ -16,9 +16,22 @@ import threading
 
 ARGS = argparse.ArgumentParser(description="UDP Echo Client Example")
 ARGS.add_argument(
-    '--count', action="store", dest="count", default='5', help='How many fake players to spawn. Each player is a thread.')
+    '--count',
+    action="store",
+    dest="count",
+    default='5',
+    help='How many fake players to spawn. Each player is a thread.')
 
-def client():
+ARGS.add_argument(
+    '--speed',
+    action="store",
+    dest="speed",
+    default="1",
+    help="How often the AI changes directions."
+)
+
+
+def client(mv_speed):
     HOST, PORT = "localhost", 9999
 
     # SOCK_DGRAM is the socket type to use for UDP sockets
@@ -31,8 +44,7 @@ def client():
 
     time_last = time.time()
     movement_timer = 0
-    movement_time = 2
-    count = 0
+    movement_time = mv_speed
 
     movement = [0, 0]
 
@@ -42,6 +54,7 @@ def client():
 
     try:
 
+        # send first message to the server to tell it we want to join.
         data = message_protocol.create("message", "hello, world")
         sock.sendto(data, (HOST, PORT))
 
@@ -83,10 +96,11 @@ if __name__ == '__main__':
 
     num_clients = int(args.count)
     print("Spawning {} clients.".format(num_clients))
+    movement_speed = float(args.speed)
     client_threads = []
     for i in range(0, num_clients):
         print("starting client {}".format(i))
-        client_thread = threading.Thread(target=client)
+        client_thread = threading.Thread(target=client, args=[movement_speed])
         client_thread.daemon = True
         client_thread.start()
         client_threads.append(client_thread)
