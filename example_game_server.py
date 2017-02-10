@@ -62,6 +62,7 @@ def connected(msg, socket):
 
 @udp_server.on('disconnected')
 def disconnected(msg, socket):
+    print("Player {} has disconnected.".format(socket))
     with lock:
         if socket in CONNECTED_CLIENTS:
             player = CONNECTED_CLIENTS[socket]

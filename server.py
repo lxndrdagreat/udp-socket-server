@@ -45,7 +45,7 @@ class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
                 if heart > self.heartbeat_rate:
                     # consider this client disconnected
                     # TODO: have a "staging" disconnect state
-                    print("removing dead client: {}".format(client))
+                    # print("removing dead client: {}".format(client))
                     dead_clients.append(client)
                 else:
                     self._heartbeats[client] = heart
