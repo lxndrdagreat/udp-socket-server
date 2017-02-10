@@ -8,6 +8,8 @@ import random
 import time
 import json
 
+lock = threading.Lock()
+
 class PlayerClient():
     def __init__(self, client_addr):
         self.uuid = uuid.uuid4().hex
@@ -16,7 +18,7 @@ class PlayerClient():
         self.rotation = 0.0
         self._client_addr = client_addr
 
-        self.speed = 1
+        self.speed = 5
         self.movement = [0, 0]
 
     def as_dict(self):
@@ -43,23 +45,25 @@ def connected(msg, socket):
     """ Both 'connected' and 'disconnected' are events
         reserved by the server. It will call them automatically.
     """
-    print("New client: {}".format(socket))
-    player = PlayerClient(socket)
-    CONNECTED_CLIENTS[socket] = player
+    with lock:
+        print("New client: {}".format(socket))
+        player = PlayerClient(socket)
+        CONNECTED_CLIENTS[socket] = player
 
-    # send welcome
-    udp_server.send(socket, "welcome", player.as_dict())
+        # send welcome
+        udp_server.send(socket, "welcome", player.as_dict())
 
 
 @udp_server.on('disconnected')
 def disconnected(msg, socket):
-    if socket in CONNECTED_CLIENTS:
-        player = CONNECTED_CLIENTS[socket]
+    with lock:
+        if socket in CONNECTED_CLIENTS:
+            player = CONNECTED_CLIENTS[socket]
 
-        # send player_left message to everyone else
-        udp_server.send_all("player_left", player.uuid)
+            # send player_left message to everyone else
+            udp_server.send_all("player_left", player.uuid)
 
-        del CONNECTED_CLIENTS[socket]
+            del CONNECTED_CLIENTS[socket]
         
 
 @udp_server.on('message')
@@ -87,11 +91,20 @@ def game_loop(delta):
 
     updated_players = []
 
-    for socket, player in CONNECTED_CLIENTS.items():
-        if player.movement[0] != 0 or player.movement[1] != 0:
-            player.position[0] += player.movement[0] * player.speed * delta
-            player.position[1] += player.movement[1] * player.speed * delta
-            updated_players.append(player.as_dict())
+    with lock:
+        for socket, player in CONNECTED_CLIENTS.items():
+            if player.movement[0] != 0 or player.movement[1] != 0:
+                player.position[0] += player.movement[0] * player.speed * delta
+                player.position[1] += player.movement[1] * player.speed * delta
+                if player.position[0] < -20:
+                    player.position[0] = -20
+                elif player.position[0] > 20:
+                    player.position[0] = 20 
+                if player.position[1] < -10:
+                    player.position[1] = -10
+                elif player.position[1] > 10:
+                    player.position[1] = 10
+                updated_players.append(player.as_dict())
 
 
     if len(updated_players) > 0:

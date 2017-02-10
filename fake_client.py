@@ -54,8 +54,8 @@ def client():
 
                 movement_timer -= delta
                 if movement_timer < 0:
-                    movement[0] = random.randrange(-1, 1)
-                    movement[1] = random.randrange(-1, 1)
+                    movement[0] = random.randrange(-1, 2)
+                    movement[1] = random.randrange(-1, 2)
                     data = message_protocol.create("player_move", movement)
                     sock.sendto(data, (HOST, PORT))
                     movement_timer = movement_time
