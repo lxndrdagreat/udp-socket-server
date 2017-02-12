@@ -8,6 +8,7 @@ import threading
 import json
 from message import MessageProtocol
 import time
+import sys
 
 class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
 
@@ -29,6 +30,10 @@ class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
         self.heartbeat_rate = 30 # seconds
         self._heartbeats = {}
         self._last_time = time.time()
+
+        # Debug settings
+        self.debug_message_size = False
+        self.debug_message_unhandled = True
 
     def service_actions(self):
         """Called by the server_forever() loop"""
@@ -60,7 +65,7 @@ class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
     def _trigger(self, event, data, addr):
         if event in self.handlers:
             self.handlers[event](data, addr)
-        else:
+        elif self.debug_message_unhandled:
             print("Unhandled event [{}]. Payload: {}".format(event, data))
 
     def finish_request(self, request, client_address):
@@ -70,6 +75,9 @@ class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
             self._trigger('connected', None, client_address)
         else:
             self._heartbeats[client_address] = 0
+
+        if self.debug_message_size:
+            print("[SOCKET INCOMING SIZE] {}".format(sys.getsizeof(request[0])))
 
         message_type, payload = self._message_protocol.parse(request[0])
         self._trigger(message_type, payload, client_address)
@@ -86,6 +94,8 @@ class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
     def send(self, client, event, payload):
         """Send message to specific client"""
         msg = self._message_protocol.create(event, payload)
+        if self.debug_message_size:
+            print("[SOCKET OUTGOING SIZE] {}".format(sys.getsizeof(msg)))
         self.socket.sendto(msg, client)
 
     def send_all(self, event, payload):

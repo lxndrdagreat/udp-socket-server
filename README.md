@@ -14,3 +14,8 @@ Then start as many copies of `example_echo_client.py` as you want.
 There is a simple "game" (term used loosely) server example.
 
 Run it via `example_game_server.py`.
+
+## References
+
+- http://unitycode.blogspot.com/2012/04/udp.html
+- http://gafferongames.com/networking-for-game-programmers/
