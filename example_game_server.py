@@ -21,6 +21,7 @@ class PacketId(Enum):
     ACK = 2
     PLAYER_INFO = 10
     PLAYER_UPDATES = 11
+    PLAYER_LEFT = 12
     PLAYER_INPUT = 20    
 
 
@@ -180,7 +181,7 @@ class GameServer:
                 player = self._clients[player_id]
 
                 # send player_left message to everyone else
-                self._socket_server.send_all("player_left", player.uuid)
+                self.send_all(PacketId.PLAYER_LEFT, player.uuid)
 
                 del self._clients[player_id]
 
