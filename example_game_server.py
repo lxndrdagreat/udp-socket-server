@@ -14,12 +14,15 @@ import sys
 
 lock = threading.Lock()
 
+
 class PacketId(Enum):
     JOIN = 0
     WELCOME = 1
     ACK = 2
     PLAYER_INFO = 10
+    PLAYER_UPDATES = 11
     PLAYER_INPUT = 20    
+
 
 class PacketProtocol(MessageProtocol):
     def create(self, msg_type, payload, sequence_number=None):
@@ -39,6 +42,7 @@ class PacketProtocol(MessageProtocol):
         # print("[PARSED] {}".format(unpacked))
         return unpacked
 
+
 class PlayerClient:
     def __init__(self, player_id, client_addr):
         self.uuid = player_id
@@ -50,7 +54,7 @@ class PlayerClient:
             random.uniform(-10.0, 10.0),
             random.uniform(-10.0, 10.0)]
         self.rotation = 0.0
-        self._client_addr = client_addr
+        self.address = client_addr
 
         self.speed = 5
         self.movement = [0, 0]
@@ -66,6 +70,7 @@ class PlayerClient:
         }
         return data
 
+
 class PacketInfo:
     def __init__(self, seq_number, sent_at, target, event, payload):        
         self.sent_ticks = sent_at
@@ -76,6 +81,7 @@ class PacketInfo:
         self.payload = payload
         self.event = event
 
+
 class GameServer:
     def __init__(self):
         self._clients = {}
@@ -84,11 +90,11 @@ class GameServer:
         self._player_id_number = 0
 
         self._socket_server = None
+        self._server_thread = None
 
         self._sequence_number = 0
-        self._max_sequence_number = 255
+        self._max_sequence_number = 10000
         self._ack_needed = []
-
 
         self.protocol = PacketProtocol()
 
@@ -136,6 +142,7 @@ class GameServer:
         if self._sequence_number < self._max_sequence_number:
             self._sequence_number += 1
         else:
+            print("SEQUENCE NUMBER LOOPED")
             self._sequence_number = 0
         return this_seq
 
@@ -147,7 +154,7 @@ class GameServer:
             seq_num = self.next_sequence_number()
 
         player = self._clients[player_id]
-        player_addr = player._client_addr
+        player_addr = player.address
                 
         msg_bytes = self.protocol.create(event, payload, seq_num)        
 
@@ -156,6 +163,11 @@ class GameServer:
             self._ack_needed.append(info)
 
         self._socket_server.send_raw(player_addr, msg_bytes)
+
+    def send_all(self, event, payload, needs_ack=False):
+        """Sends the message to all active players."""
+        for player_id, player in self._clients.items():
+            self.send(player_id, event, payload, needs_ack)
 
     def game_loop(self, dt):
         updated_players = []
@@ -187,9 +199,9 @@ class GameServer:
                         player.position[1] = 10
                     updated_players.append(player.as_dict())
 
-        # if len(updated_players) > 0:
+        if len(updated_players) > 0:
             # print("sending player updates for {} players".format(len(updated_players)))
-            # self._socket_server.send_all("players", updated_players)
+            self.send_all(PacketId.PLAYER_UPDATES, updated_players)
 
         # loop through the Acks queue to see if we need to send more acks
         if len(self._ack_needed):
@@ -206,8 +218,8 @@ class GameServer:
                     # oldest packs will be at the front
                     break
     
-    def sequence_more_recent(self, s1, s2, max):
-        return (s1 > s2 and s1 - s2 <= max / 2) or (s2 > s1 and s2 - s1 > max/2)
+    def sequence_more_recent(self, s1, s2):
+        return (s1 > s2 and s1 - s2 <= self._max_sequence_number / 2) or (s2 > s1 and s2 - s1 > self._max_sequence_number/2)
 
     def client_connected(self, msg, socket):
         """ Both 'connected' and 'disconnected' are events
@@ -239,7 +251,6 @@ class GameServer:
     def received_ack(self, msg, socket):
         if socket not in self._socket_to_player:
             return
-        player = self._clients[self._socket_to_player[socket]]
         acks = json.loads(msg)
         for ack in acks:
             ackInfo = next((a for a in self._ack_needed if a.sequence_number == ack), None)
