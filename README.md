@@ -15,7 +15,11 @@ There is a simple "game" (term used loosely) server example.
 
 Run it via `example_game_server.py`.
 
+### Message Protocol
+
+
 ## References
 
 - http://unitycode.blogspot.com/2012/04/udp.html
 - http://gafferongames.com/networking-for-game-programmers/
+- https://www.gamedev.net/topic/328867-udp-with-ack/

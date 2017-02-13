@@ -10,9 +10,11 @@ import sys
 import time
 import json
 import argparse
-from message import MessageProtocol
+# from message import MessageProtocol
+from example_game_server import PacketProtocol, PacketId
 import random
 import threading
+import msgpack
 
 ARGS = argparse.ArgumentParser(description="UDP Echo Client Example")
 ARGS.add_argument(
@@ -40,7 +42,8 @@ def client(mv_speed):
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     sock.setblocking(False)
 
-    message_protocol = MessageProtocol()
+    # message_protocol = MessageProtocol()
+    message_protocol = PacketProtocol()
 
     time_last = time.time()
     movement_timer = 0
@@ -55,7 +58,7 @@ def client(mv_speed):
     try:
 
         # send first message to the server to tell it we want to join.
-        data = message_protocol.create("message", "hello, world")
+        data = message_protocol.create(PacketId.JOIN, "hello, world")
         sock.sendto(data, (HOST, PORT))
 
         while True:
@@ -69,19 +72,24 @@ def client(mv_speed):
                 if movement_timer < 0:
                     movement[0] = random.randrange(-1, 2)
                     movement[1] = random.randrange(-1, 2)
-                    data = message_protocol.create("player_move", movement)
+                    data = message_protocol.create(PacketId.PLAYER_INPUT, json.dumps(movement))
                     sock.sendto(data, (HOST, PORT))
                     movement_timer = movement_time
 
             try:
                 message, address = sock.recvfrom(8192)
                 if message:
-                    message_type, payload = message_protocol.parse(message)
+                    parsed = message_protocol.parse(message)
+                    message_type = parsed['t']
+                    payload = parsed['p']
 
-                    if message_type == 'welcome':
+                    if message_type == PacketId.WELCOME:
                         welcomed = True
                         my_player = json.loads(payload)
                         print("me: {}".format(my_player))
+                        # send Ack
+                        data = message_protocol.create(PacketId.ACK, json.dumps([parsed['s']]))
+                        sock.sendto(data, (HOST, PORT))
             except:
                 pass
                 

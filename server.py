@@ -79,7 +79,9 @@ class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
         if self.debug_message_size:
             print("[SOCKET INCOMING SIZE] {}".format(sys.getsizeof(request[0])))
 
-        message_type, payload = self._message_protocol.parse(request[0])
+        message = self._message_protocol.parse(request[0])
+        message_type = message['t']
+        payload = message['p']
         self._trigger(message_type, payload, client_address)
 
     def on(self, event, handler=None):
@@ -98,7 +100,13 @@ class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
             print("[SOCKET OUTGOING SIZE] {}".format(sys.getsizeof(msg)))
         self.socket.sendto(msg, client)
 
+    def send_raw(self, client, payload):
+        """Send message to specific client, without using Message Protocol"""
+        if self.debug_message_size:
+            print("[SOCKET OUTGOING SIZE] {}".format(sys.getsizeof(payload)))
+        self.socket.sendto(payload, client)
+
     def send_all(self, event, payload):
         """Send message to all known clients"""
         for client in self.clients:
-            self.send(client, event, payload)
+            self.send(client, event, payload)    
