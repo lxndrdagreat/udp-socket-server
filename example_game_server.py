@@ -22,7 +22,10 @@ class PacketId(Enum):
     PLAYER_INFO = 10
     PLAYER_UPDATES = 11
     PLAYER_LEFT = 12
-    PLAYER_INPUT = 20    
+    PLAYER_INPUT = 20
+    PLAYER_FIRE = 21
+    WORLD_INFO = 30
+    BULLETS = 35
 
 
 class PacketProtocol(MessageProtocol):
@@ -45,6 +48,7 @@ class PacketProtocol(MessageProtocol):
 
 
 class PlayerClient:
+    """ Server-side representation of every connected player. """
     def __init__(self, player_id, client_addr):
         self.uuid = player_id
         self.color = (
@@ -58,16 +62,24 @@ class PlayerClient:
         self.address = client_addr
 
         self.speed = 5
+
+        # Player's current input, stored as <x> and <y> deltas
         self.movement = [0, 0]
 
     def as_dict(self):
+        """ This is the information about the player that gets sent around
+            to everyone.
+
+            Color, position and rotation data are transformed from floats to
+            integers for passing. This loses an acceptable degree of accuracy.
+        """
         data = {
             "uuid": self.uuid,
-            "colorRed": self.color[0],
-            "colorGreen": self.color[1],
-            "colorBlue": self.color[2],
-            "position": self.position,
-            "rotation": self.rotation
+            "colorRed": self.color[0] * 255,
+            "colorGreen": self.color[1] * 255,
+            "colorBlue": self.color[2] * 255,
+            "position": (self.position[0] * 1000, self.position[1] * 1000),
+            "rotation": self.rotation * 1000
         }
         return data
 
@@ -81,6 +93,34 @@ class PacketInfo:
         # this is so we can send it again if needed
         self.payload = payload
         self.event = event
+
+
+class World:
+    """ Server-side representation of the game world. """
+    def __init__(self, size=(20, 10)):
+        # size of the world, in "units"
+        self.width = size[0]
+        self.height = size[1]
+
+    def as_dict(self):
+        return {
+            "width": self.width,
+            "height": self.height
+        }
+
+
+class Bullet:
+    """ Server-side representation of a bullet object. """
+    def __init__(self, pos, rot, created_by):
+        self.position = pos
+        self.rotation = rot
+        self.owner = created_by
+
+    def as_dict(self):
+        return {
+            "position": [self.position[0] * 1000, self.position[1] * 1000],
+            "rotation": self.rotation * 1000
+        }
 
 
 class GameServer:
@@ -99,6 +139,10 @@ class GameServer:
 
         self.protocol = PacketProtocol()
 
+        # game state stuff
+        self._world = World()
+        self._bullets = []
+
     def start(self):
         self._socket_server = EventServer(('localhost', 9999))        
         self._socket_server.heartbeat_rate = 10
@@ -111,6 +155,7 @@ class GameServer:
         self._socket_server.on('disconnected', self.client_disconnected)
         self._socket_server.on(PacketId.PLAYER_INPUT, self.player_movement)
         self._socket_server.on(PacketId.ACK, self.received_ack)
+        self._socket_server.on(PacketId.PLAYER_FIRE, self.player_fire)
 
         self._server_thread = threading.Thread(target=self._socket_server.serve_forever)
         self._server_thread.daemon = True
@@ -234,6 +279,9 @@ class GameServer:
 
             # send welcome
             self.send(player.uuid, PacketId.WELCOME, json.dumps(player.as_dict()), True)
+
+            # send world, require acknowledge
+            self.send(player.uuid, PacketId.WORLD_INFO, json.dumps(self._world.as_dict()), True)
     
     def client_disconnected(self, msg, socket):
         player = self._clients[self._socket_to_player[socket]]
@@ -248,6 +296,13 @@ class GameServer:
         player = self._clients[self._socket_to_player[socket]]
         movement = json.loads(msg)
         player.movement = movement
+
+    def player_fire(self, msg, socket):
+        if socket not in self._socket_to_player:
+            return
+
+        player = self._clients[self._socket_to_player[socket]]
+        
 
     def received_ack(self, msg, socket):
         if socket not in self._socket_to_player:
