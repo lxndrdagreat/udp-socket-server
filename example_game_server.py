@@ -4,7 +4,6 @@
 # from server import ThreadedUDPServer
 from server import EventServer
 import threading
-import uuid
 import random
 import time
 import json
@@ -164,7 +163,7 @@ class GameServer:
             info = PacketInfo(seq_num, time.time(), player_id, event, payload)
             self._ack_needed.append(info)
 
-        self._socket_server.send_raw(player_addr, msg_bytes)
+        self._socket_server.sendto(player_addr, msg_bytes)
 
     def send_all(self, event, payload, needs_ack=False):
         """Sends the message to all active players."""

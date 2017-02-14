@@ -10,6 +10,7 @@ from message import MessageProtocol
 import time
 import sys
 
+
 class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
 
     def __init__(self, server_address, bind_and_activate=True):
@@ -30,22 +31,11 @@ class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
 
         self.message_received(request[0], socket_address)
 
-    def send(self, address, data):
+    def sendto(self, address, data):
         """Send data to specific address"""
         if self.debug_message_size:
             print("[SOCKET OUTGOING SIZE] {}".format(sys.getsizeof(data)))
         self.socket.sendto(data, address)
-
-    def send_raw(self, client, payload):
-        """Send message to specific client, without using Message Protocol"""
-        if self.debug_message_size:
-            print("[SOCKET OUTGOING SIZE] {}".format(sys.getsizeof(payload)))
-        self.socket.sendto(payload, client)
-
-    def send_all(self, event, payload):
-        """Send message to all known clients"""
-        for client in self.clients:
-            self.send(client, event, payload)
 
     def message_received(self, data, socket_address):
         """ This is called when we receive data. Override this. """
@@ -55,7 +45,9 @@ class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
 class EventServer(ThreadedUDPServer):
     """ EventServer
 
-        Builds off of the ThreadedUDPServer to add an "event message" system.
+        Builds off of the ThreadedUDPServer to add an "event message" system,
+        as well as a heartbeat system (automatically considers endpoints
+        "disconnected" if they haven't talked to us in a while.
     """
     def __init__(self, server_address, bind_and_activate=True):
         ThreadedUDPServer.__init__(self, server_address, bind_and_activate)
@@ -128,7 +120,12 @@ class EventServer(ThreadedUDPServer):
         msg = self._message_protocol.create(event, payload)
         if self.debug_message_size:
             print("[SOCKET OUTGOING SIZE] {}".format(sys.getsizeof(msg)))
-        super(EventServer, self).send(client, msg)
+        super(EventServer, self).sendto(client, msg)
+
+    def send_all(self, event, payload):
+        """ Send message to all connected clients. """
+        for client in self.clients:
+            self.send(client, event, payload)
 
     def message_received(self, data, socket_address):
         if socket_address not in self.clients:            
