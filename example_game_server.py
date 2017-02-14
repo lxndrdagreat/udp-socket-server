@@ -1,7 +1,8 @@
 # Example Game Server
 #
 # This is a simple game server for a silly "game".
-from server import ThreadedUDPServer
+# from server import ThreadedUDPServer
+from server import EventServer
 import threading
 import uuid
 import random
@@ -100,7 +101,7 @@ class GameServer:
         self.protocol = PacketProtocol()
 
     def start(self):
-        self._socket_server = ThreadedUDPServer(('localhost', 9999))        
+        self._socket_server = EventServer(('localhost', 9999))        
         self._socket_server.heartbeat_rate = 10
         self._socket_server._message_protocol = PacketProtocol()
         # Turn on the socket server's debug log of message sizes:
