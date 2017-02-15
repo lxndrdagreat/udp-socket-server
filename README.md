@@ -17,6 +17,7 @@ Run it via `example_game_server.py`.
 
 ### Message Protocol
 
+- Uses http://msgpack.org/index.html
 
 ## References
 
