@@ -41,6 +41,7 @@ class PacketProtocol(MessageProtocol):
 
     def parse(self, message):        
         unpacked = msgpack.unpackb(message, encoding='utf-8')
+        # print(unpacked)
         unpacked['t'] = PacketId(int(unpacked['t']))
         return unpacked
 
@@ -328,6 +329,7 @@ class GameServer:
 
         player = self._clients[self._socket_to_player[socket]]
         movement = json.loads(msg)
+        print("Got player input for {}: {}".format(player.uuid, movement))
         player.set_movement(movement)
 
     def player_fire(self, msg, socket):
