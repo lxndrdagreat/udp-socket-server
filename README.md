@@ -23,3 +23,5 @@ Run it via `example_game_server.py`.
 - http://unitycode.blogspot.com/2012/04/udp.html
 - http://gafferongames.com/networking-for-game-programmers/
 - https://www.gamedev.net/topic/328867-udp-with-ack/
+- http://fabiensanglard.net/quake3/network.php
+- https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking

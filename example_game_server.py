@@ -58,13 +58,21 @@ class PlayerClient:
         self.position = [
             random.uniform(-10.0, 10.0),
             random.uniform(-10.0, 10.0)]
-        self.rotation = 0.0
         self.address = client_addr
 
         self.speed = 5
 
         # Player's current input, stored as <x> and <y> deltas
         self.movement = [0, 0]
+
+        # which direction is the player "facing" 
+        # (aka, which way did he move last)
+        self.facing = [1, 0]
+
+    def set_movement(self, move):
+        self.movement = move
+        if move[0] != 0 or move[1] != 0:
+            self.facing = move
 
     def as_dict(self):
         """ This is the information about the player that gets sent around
@@ -78,8 +86,7 @@ class PlayerClient:
             "colorRed": self.color[0] * 255,
             "colorGreen": self.color[1] * 255,
             "colorBlue": self.color[2] * 255,
-            "position": (self.position[0] * 1000, self.position[1] * 1000),
-            "rotation": self.rotation * 1000
+            "position": (self.position[0] * 1000, self.position[1] * 1000)            
         }
         return data
 
@@ -111,10 +118,12 @@ class World:
 
 class Bullet:
     """ Server-side representation of a bullet object. """
-    def __init__(self, pos, rot, created_by):
+    def __init__(self, pos, direct, created_by):
         self.position = pos
-        self.rotation = rot
+        self.direction = direct
+        self.speed = 8
         self.owner = created_by
+        self.lifetime = 2.0
 
     def as_dict(self):
         return {
@@ -249,6 +258,26 @@ class GameServer:
             # print("sending player updates for {} players".format(len(updated_players)))
             self.send_all(PacketId.PLAYER_UPDATES, updated_players)
 
+        # update bullets
+        dead_bullets = []
+        bullet_update = []
+        for bullet in self._bullets:
+            bullet.lifetime -= dt
+            if bullet.lifetime <= 0:
+                dead_bullets.append(bullet)
+                continue
+            bullet.position[0] += bullet.direction[0] * bullet.speed * dt
+            bullet.position[1] += bullet.direction[1] * bullet.speed * dt            
+            bullet_update.append(bullet.as_dict())
+
+        # remove dead bullets
+        for bullet in dead_bullets:
+            self._bullets.remove(bullet)
+
+        # send bullet updates if some were updated or removed
+        if len(bullet_update) > 0 or len(dead_bullets) > 0:
+            self.send_all(PacketId.BULLETS, bullet_update)
+
         # loop through the Acks queue to see if we need to send more acks
         if len(self._ack_needed):
             while len(self._ack_needed) > 0:
@@ -295,7 +324,7 @@ class GameServer:
 
         player = self._clients[self._socket_to_player[socket]]
         movement = json.loads(msg)
-        player.movement = movement
+        player.set_movement(movement)
 
     def player_fire(self, msg, socket):
         if socket not in self._socket_to_player:
@@ -303,6 +332,9 @@ class GameServer:
 
         player = self._clients[self._socket_to_player[socket]]
         
+        # create bullet
+        bullet = Bullet(player.position, player.facing, player.uuid)
+        self._bullets.append(bullet)
 
     def received_ack(self, msg, socket):
         if socket not in self._socket_to_player:
