@@ -29,21 +29,19 @@ class PacketId(Enum):
 
 
 class PacketProtocol(MessageProtocol):
-    def create(self, msg_type, payload, sequence_number=None):
+    def create(self, msg_type, payload, sequence_number=0, needs_ack=False):
         message = {
             "t": msg_type.value,
-            "p": payload
+            "p": payload,
+            "s": sequence_number,
+            "a": 1 if needs_ack else 0
         }
-        if sequence_number is not None:
-            message['s'] = sequence_number
-        # print("[CREATED] {}".format(message))
         packed = msgpack.packb(message)
         return packed
 
     def parse(self, message):        
         unpacked = msgpack.unpackb(message, encoding='utf-8')
         unpacked['t'] = PacketId(int(unpacked['t']))
-        # print("[PARSED] {}".format(unpacked))
         return unpacked
 
 
@@ -83,10 +81,10 @@ class PlayerClient:
         """
         data = {
             "uuid": self.uuid,
-            "colorRed": self.color[0] * 255,
-            "colorGreen": self.color[1] * 255,
-            "colorBlue": self.color[2] * 255,
-            "position": (self.position[0] * 1000, self.position[1] * 1000)            
+            "colorRed": int(self.color[0] * 255),
+            "colorGreen": int(self.color[1] * 255),
+            "colorBlue": int(self.color[2] * 255),
+            "position": (int(self.position[0] * 1000), int(self.position[1] * 1000))
         }
         return data
 
@@ -211,10 +209,11 @@ class GameServer:
         player = self._clients[player_id]
         player_addr = player.address
                 
-        msg_bytes = self.protocol.create(event, payload, seq_num)        
+        msg_bytes = self.protocol.create(event, payload, seq_num, needs_ack)
 
         if needs_ack:
             info = PacketInfo(seq_num, time.time(), player_id, event, payload)
+            print("new ACK for {} at time: {}".format(seq_num, info.sent_ticks))
             self._ack_needed.append(info)
 
         self._socket_server.sendto(player_addr, msg_bytes)
@@ -278,20 +277,24 @@ class GameServer:
         if len(bullet_update) > 0 or len(dead_bullets) > 0:
             self.send_all(PacketId.BULLETS, bullet_update)
 
-        # loop through the Acks queue to see if we need to send more acks
-        if len(self._ack_needed):
-            while len(self._ack_needed) > 0:
-                ack = self._ack_needed[0]
-                since = time.time() - ack.sent_ticks
-                if since > 2:
-                    # resend and requeue
-                    self._ack_needed.pop()
-                    print("ACK needed for {}".format(ack.sequence_number))
+        with lock:
+            # loop through the Acks queue to see if we need to send more acks
+            if len(self._ack_needed):
+                resend_acks = []
+                while len(self._ack_needed) > 0:
+                    ack = self._ack_needed[0]
+                    since = time.time() - ack.sent_ticks
+                    if since >= 2:
+                        # resend and requeue
+                        # print("ACK needed for {}".format(ack.sequence_number))
+                        resend_acks.append(self._ack_needed.pop())
+                    else:
+                        # hit a young pack, quit for now
+                        # oldest packs will be at the front
+                        break
+
+                for ack in resend_acks:
                     self.send(ack.target, ack.event, ack.payload, True, ack.sequence_number)
-                else:
-                    # hit a young pack, quit for now
-                    # oldest packs will be at the front
-                    break
     
     def sequence_more_recent(self, s1, s2):
         return (s1 > s2 and s1 - s2 <= self._max_sequence_number / 2) or (s2 > s1 and s2 - s1 > self._max_sequence_number/2)
@@ -307,6 +310,7 @@ class GameServer:
             self._socket_to_player[socket] = player.uuid
 
             # send welcome
+            print(player.as_dict())
             self.send(player.uuid, PacketId.WELCOME, json.dumps(player.as_dict()), True)
 
             # send world, require acknowledge
@@ -343,6 +347,7 @@ class GameServer:
         for ack in acks:
             ackInfo = next((a for a in self._ack_needed if a.sequence_number == ack), None)
             if ackInfo:
+                print("ack received: {}".format(ackInfo.sequence_number))
                 self._ack_needed.remove(ackInfo)                
 
 if __name__ == "__main__":    

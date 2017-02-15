@@ -21,7 +21,7 @@ ARGS.add_argument(
     '--count',
     action="store",
     dest="count",
-    default='10',
+    default='2',
     help='How many fake players to spawn. Each player is a thread.')
 
 ARGS.add_argument(
@@ -58,7 +58,7 @@ def client(mv_speed):
     try:
 
         # send first message to the server to tell it we want to join.
-        data = message_protocol.create(PacketId.JOIN, "hello, world")
+        data = message_protocol.create(PacketId.JOIN, "hello, world", 0)
         sock.sendto(data, (HOST, PORT))
 
         while True:
@@ -72,7 +72,7 @@ def client(mv_speed):
                 if movement_timer < 0:
                     movement[0] = random.randrange(-1, 2)
                     movement[1] = random.randrange(-1, 2)
-                    data = message_protocol.create(PacketId.PLAYER_INPUT, json.dumps(movement))
+                    data = message_protocol.create(PacketId.PLAYER_INPUT, json.dumps(movement), 0)
                     sock.sendto(data, (HOST, PORT))
                     movement_timer = movement_time
 
@@ -82,13 +82,17 @@ def client(mv_speed):
                     parsed = message_protocol.parse(message)
                     message_type = parsed['t']
                     payload = parsed['p']
+                    needs_ack = True if parsed['a'] == 1 else False
+                    sequence_number = parsed['s']
 
                     if message_type == PacketId.WELCOME:
                         welcomed = True
                         my_player = json.loads(payload)
                         print("me: {}".format(my_player))
+
+                    if needs_ack:
                         # send Ack
-                        data = message_protocol.create(PacketId.ACK, json.dumps([parsed['s']]))
+                        data = message_protocol.create(PacketId.ACK, json.dumps([sequence_number]), 0)
                         sock.sendto(data, (HOST, PORT))
             except:
                 pass
