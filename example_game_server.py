@@ -272,7 +272,7 @@ class GameServer:
                 print("AVG BANDWIDTH SENT PER SECOND: {} {}".format(avg, amnt))
                 if len(self._clients) > 0:
                     avg = (sent / self._stat_time) / len(self._clients)
-                    print ("AVG MESSAGES PER PLAYER: {}".format(avg))
+                    print("AVG MESSAGES PER PLAYER: {}".format(avg))
 
         with lock:
             # remove disconnected players
@@ -282,7 +282,7 @@ class GameServer:
                 player = self._clients[player_id]
 
                 # send player_left message to everyone else
-                self.send_all(PacketId.PLAYER_LEFT, player.uuid)
+                self.send_all(PacketId.PLAYER_LEFT, json.dumps(player.uuid))
 
                 del self._clients[player_id]
 
