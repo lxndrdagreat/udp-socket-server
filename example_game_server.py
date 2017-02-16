@@ -141,7 +141,7 @@ class GameServer:
         self._player_id_number = 0
 
         # Binding Address
-        self._server_address = ('localhost', int(settings.port))
+        self._server_address = ('127.0.0.1', int(settings.port))
 
         self._socket_server = None
         self._server_thread = None
