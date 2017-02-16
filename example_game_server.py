@@ -36,6 +36,7 @@ class PacketProtocol(MessageProtocol):
             "s": sequence_number,
             "a": 1 if needs_ack else 0
         }
+        # print(message)
         packed = msgpack.packb(message)
         return packed
 
@@ -59,14 +60,14 @@ class PlayerClient:
             random.uniform(-10.0, 10.0)]
         self.address = client_addr
 
-        self.speed = 5
+        self.speed = 10
 
         # Player's current input, stored as <x> and <y> deltas
         self.movement = [0, 0]
 
         # which direction is the player "facing" 
         # (aka, which way did he move last)
-        self.facing = [1, 0]
+        self.facing = [1, 0]        
 
     def set_movement(self, move):
         self.movement = move
@@ -149,7 +150,7 @@ class GameServer:
 
         # game state stuff
         self._world = World()
-        self._bullets = []
+        self._bullets = []        
 
     def start(self):
         self._socket_server = EventServer(('localhost', 9999))        
@@ -161,6 +162,7 @@ class GameServer:
         # set up handlers
         self._socket_server.on('connected', self.client_connected)
         self._socket_server.on('disconnected', self.client_disconnected)
+        self._socket_server.on(PacketId.JOIN, self.player_join)
         self._socket_server.on(PacketId.PLAYER_INPUT, self.player_movement)
         self._socket_server.on(PacketId.ACK, self.received_ack)
         self._socket_server.on(PacketId.PLAYER_FIRE, self.player_fire)
@@ -214,15 +216,16 @@ class GameServer:
 
         if needs_ack:
             info = PacketInfo(seq_num, time.time(), player_id, event, payload)
-            print("new ACK for {} at time: {}".format(seq_num, info.sent_ticks))
+            # print("new ACK for {} at time: {}".format(seq_num, info.sent_ticks))
             self._ack_needed.append(info)
 
         self._socket_server.sendto(player_addr, msg_bytes)
 
     def send_all(self, event, payload, needs_ack=False):
         """Sends the message to all active players."""
-        for player_id, player in self._clients.items():
-            self.send(player_id, event, payload, needs_ack)
+        with lock:
+            for player_id, player in self._clients.items():
+                self.send(player_id, event, payload, needs_ack)
 
     def game_loop(self, dt):
         updated_players = []
@@ -243,20 +246,20 @@ class GameServer:
             for player_id, player in self._clients.items():
                 if player.movement[0] != 0 or player.movement[1] != 0:
                     player.position[0] += player.movement[0] * player.speed * dt
-                    player.position[1] += player.movement[1] * player.speed * dt
-                    if player.position[0] < -20:
-                        player.position[0] = -20
-                    elif player.position[0] > 20:
-                        player.position[0] = 20 
-                    if player.position[1] < -10:
-                        player.position[1] = -10
-                    elif player.position[1] > 10:
-                        player.position[1] = 10
+                    player.position[1] += player.movement[1] * player.speed * dt                    
+                    if player.position[0] <= -self._world.width + 1:
+                        player.position[0] = -self._world.width + 1
+                    elif player.position[0] >= self._world.width - 1:
+                        player.position[0] = self._world.width - 1 
+                    if player.position[1] < -self._world.height + 1:
+                        player.position[1] = -self._world.height + 1
+                    elif player.position[1] >= self._world.height - 1:
+                        player.position[1] = self._world.height - 1
                     updated_players.append(player.as_dict())
 
         if len(updated_players) > 0:
             # print("sending player updates for {} players".format(len(updated_players)))
-            self.send_all(PacketId.PLAYER_UPDATES, updated_players)
+            self.send_all(PacketId.PLAYER_UPDATES, json.dumps(updated_players))
 
         # update bullets
         dead_bullets = []
@@ -300,6 +303,9 @@ class GameServer:
     def sequence_more_recent(self, s1, s2):
         return (s1 > s2 and s1 - s2 <= self._max_sequence_number / 2) or (s2 > s1 and s2 - s1 > self._max_sequence_number/2)
 
+    def player_join(self, msg, socket):
+        pass
+
     def client_connected(self, msg, socket):
         """ Both 'connected' and 'disconnected' are events
             reserved by the server. It will call them automatically.
@@ -311,7 +317,7 @@ class GameServer:
             self._socket_to_player[socket] = player.uuid
 
             # send welcome
-            print(player.as_dict())
+            # print(player.as_dict())
             self.send(player.uuid, PacketId.WELCOME, json.dumps(player.as_dict()), True)
 
             # send world, require acknowledge
@@ -319,9 +325,10 @@ class GameServer:
     
     def client_disconnected(self, msg, socket):
         player = self._clients[self._socket_to_player[socket]]
-        print("Player {} has disconnected.".format(player.uuid))
-        if player.uuid in self._clients and player.uuid not in self._clients_to_remove:
-            self._clients_to_remove.append(player.uuid)
+        with lock:
+            print("Player {} has disconnected.".format(player.uuid))
+            if player.uuid in self._clients and player.uuid not in self._clients_to_remove:
+                self._clients_to_remove.append(player.uuid)
 
     def player_movement(self, msg, socket):
         if socket not in self._socket_to_player:
@@ -329,7 +336,7 @@ class GameServer:
 
         player = self._clients[self._socket_to_player[socket]]
         movement = json.loads(msg)
-        print("Got player input for {}: {}".format(player.uuid, movement))
+        # print("Got player input for {}: {}".format(player.uuid, movement))
         player.set_movement(movement)
 
     def player_fire(self, msg, socket):
@@ -346,11 +353,12 @@ class GameServer:
         if socket not in self._socket_to_player:
             return
         acks = json.loads(msg)
-        for ack in acks:
-            ackInfo = next((a for a in self._ack_needed if a.sequence_number == ack), None)
-            if ackInfo:
-                print("ack received: {}".format(ackInfo.sequence_number))
-                self._ack_needed.remove(ackInfo)                
+        with lock:
+            for ack in acks:
+                ackInfo = next((a for a in self._ack_needed if a.sequence_number == ack), None)
+                if ackInfo and ackInfo:
+                    # print("ack received: {}".format(ackInfo.sequence_number))
+                    self._ack_needed.remove(ackInfo)                
 
 if __name__ == "__main__":    
     
