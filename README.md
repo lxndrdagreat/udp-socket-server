@@ -17,7 +17,18 @@ Run it via `example_game_server.py`.
 
 ### Message Protocol
 
-- Uses http://msgpack.org/index.html
+The MessageProtocol for the example game server uses [msgpack](http://msgpack.org/index.html).
+
+Messages are formatted as follows:
+
+```
+{
+  "t": int, // The packet's type ID.
+  "p": string, // The payload, encoded as a string
+  "a": bool, // Is "ack" needed? True/False as a 1 or 0 
+  "s": int // packet's sequence number
+}
+```
 
 ## References
 

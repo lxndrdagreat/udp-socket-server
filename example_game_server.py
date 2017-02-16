@@ -152,10 +152,14 @@ class GameServer:
         self._world = World()
         self._bullets = []
 
+        # game tick rate, in frames per second.
+        self._tick_rate = 60
+
         # stats
         self._stat_timer = 5
         self._stat_time = 5
         self._stat_sent = 0
+        self._stat_sent_bandwidth = 0
 
     def start(self):
         self._socket_server = EventServer(('localhost', 9999))        
@@ -178,7 +182,7 @@ class GameServer:
 
         # for a fixed update tick
         last_time = time.time()
-        loop_time = 1.0 / 60
+        loop_time = 1.0 / self._tick_rate
         loop_timer = 0
 
         while True:
@@ -188,6 +192,10 @@ class GameServer:
 
             loop_timer += delta
             if loop_timer >= loop_time:
+                if loop_timer >= loop_time * 1.5:
+                    print("----------------------")
+                    print("FRAMERATE DROPPED TO {}fps".format((1.0 / loop_timer)))
+                    print("----------------------")
 
                 self.game_loop(loop_timer)
                 loop_timer = 0
@@ -226,6 +234,8 @@ class GameServer:
             # print("new ACK for {} at time: {}".format(seq_num, info.sent_ticks))
             self._ack_needed.append(info)
 
+        self._stat_sent_bandwidth += sys.getsizeof(msg_bytes)
+
         self._socket_server.sendto(player_addr, msg_bytes)
 
     def send_all(self, event, payload, needs_ack=False):
@@ -244,6 +254,18 @@ class GameServer:
                 self._stat_sent = 0
                 avg = sent / self._stat_time
                 print("AVG MESSAGES SENT PER SECOND: {}".format(avg))
+                sent = self._stat_sent_bandwidth
+                self._stat_sent_bandwidth = 0
+                avg = sent / self._stat_time
+                amnt = "bytes"
+                if avg > 1000000:
+                    avg /= 1000
+                    avg /= 1000
+                    amnt = "megabytes"
+                elif avg > 10000:
+                    avg /= 1000
+                    amnt = "kilobytes"
+                print("AVG BANDWIDTH SENT PER SECOND: {} {}".format(avg, amnt))
 
         with lock:
             # remove disconnected players
