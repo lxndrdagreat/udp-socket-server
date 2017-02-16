@@ -11,6 +11,7 @@ from message import MessageProtocol
 from enum import Enum
 import msgpack
 import sys
+import argparse
 
 lock = threading.Lock()
 
@@ -133,11 +134,14 @@ class Bullet:
 
 
 class GameServer:
-    def __init__(self):
+    def __init__(self, settings):
         self._clients = {}
         self._socket_to_player = {}
         self._clients_to_remove = []
         self._player_id_number = 0
+
+        # Binding Address
+        self._server_address = ('localhost', int(settings.port))
 
         self._socket_server = None
         self._server_thread = None
@@ -153,7 +157,7 @@ class GameServer:
         self._bullets = []
 
         # game tick rate, in frames per second.
-        self._tick_rate = 60
+        self._tick_rate = int(settings.tickRate)
 
         # stats
         self._stat_timer = 5
@@ -162,11 +166,9 @@ class GameServer:
         self._stat_sent_bandwidth = 0
 
     def start(self):
-        self._socket_server = EventServer(('localhost', 9999))        
+        self._socket_server = EventServer(self._server_address)
         self._socket_server.heartbeat_rate = 10
         self._socket_server._message_protocol = PacketProtocol()
-        # Turn on the socket server's debug log of message sizes:
-        # self._socket_server.debug_message_size = True
 
         # set up handlers
         self._socket_server.on('connected', self.client_connected)
@@ -179,6 +181,8 @@ class GameServer:
         self._server_thread = threading.Thread(target=self._socket_server.serve_forever)
         self._server_thread.daemon = True
         self._server_thread.start()
+
+        print("Serving on {}".format(self._server_address))
 
         # for a fixed update tick
         last_time = time.time()
@@ -397,7 +401,24 @@ class GameServer:
                     # print("ack received: {}".format(ackInfo.sequence_number))
                     self._ack_needed.remove(ackInfo)                
 
-if __name__ == "__main__":    
-    
-    game = GameServer()
+ARGS = argparse.ArgumentParser(description="Example Game Server")
+ARGS.add_argument(
+    '--port',
+    action="store",
+    dest="port",
+    default='9999',
+    help='What port to bind to.')
+
+ARGS.add_argument(
+    '--tickRate',
+    action="store",
+    dest="tickRate",
+    default="60",
+    help="Tick rate of the game loop in frames per second."
+)
+
+if __name__ == "__main__":
+    args = ARGS.parse_args()
+
+    game = GameServer(args)
     game.start()
