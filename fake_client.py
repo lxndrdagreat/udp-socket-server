@@ -21,7 +21,7 @@ ARGS.add_argument(
     '--count',
     action="store",
     dest="count",
-    default='2',
+    default='32',
     help='How many fake players to spawn. Each player is a thread.')
 
 ARGS.add_argument(

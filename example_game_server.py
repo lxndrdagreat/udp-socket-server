@@ -150,7 +150,12 @@ class GameServer:
 
         # game state stuff
         self._world = World()
-        self._bullets = []        
+        self._bullets = []
+
+        # stats
+        self._stat_timer = 5
+        self._stat_time = 5
+        self._stat_sent = 0
 
     def start(self):
         self._socket_server = EventServer(('localhost', 9999))        
@@ -209,6 +214,8 @@ class GameServer:
         if not seq_num:
             seq_num = self.next_sequence_number()
 
+        self._stat_sent += 1
+
         player = self._clients[player_id]
         player_addr = player.address
                 
@@ -223,12 +230,20 @@ class GameServer:
 
     def send_all(self, event, payload, needs_ack=False):
         """Sends the message to all active players."""
-        with lock:
-            for player_id, player in self._clients.items():
-                self.send(player_id, event, payload, needs_ack)
+        for player_id, player in self._clients.items():
+            self.send(player_id, event, payload, needs_ack)
 
     def game_loop(self, dt):
         updated_players = []
+
+        self._stat_timer -= dt
+        if self._stat_timer <= 0:
+            self._stat_timer = self._stat_time
+            with lock:
+                sent = self._stat_sent
+                self._stat_sent = 0
+                avg = sent / self._stat_time
+                print("AVG MESSAGES SENT PER SECOND: {}".format(avg))
 
         with lock:
             # remove disconnected players
@@ -241,6 +256,8 @@ class GameServer:
                 self.send_all(PacketId.PLAYER_LEFT, player.uuid)
 
                 del self._clients[player_id]
+
+            self._clients_to_remove.clear()
 
             # loop through players and handle updates
             for player_id, player in self._clients.items():
@@ -257,31 +274,30 @@ class GameServer:
                         player.position[1] = self._world.height - 1
                     updated_players.append(player.as_dict())
 
-        if len(updated_players) > 0:
-            # print("sending player updates for {} players".format(len(updated_players)))
-            self.send_all(PacketId.PLAYER_UPDATES, json.dumps(updated_players))
+            if len(updated_players) > 0:
+                # print("sending player updates for {} players".format(len(updated_players)))
+                self.send_all(PacketId.PLAYER_UPDATES, json.dumps(updated_players))
 
-        # update bullets
-        dead_bullets = []
-        bullet_update = []
-        for bullet in self._bullets:
-            bullet.lifetime -= dt
-            if bullet.lifetime <= 0:
-                dead_bullets.append(bullet)
-                continue
-            bullet.position[0] += bullet.direction[0] * bullet.speed * dt
-            bullet.position[1] += bullet.direction[1] * bullet.speed * dt            
-            bullet_update.append(bullet.as_dict())
+            # update bullets
+            dead_bullets = []
+            bullet_update = []
+            for bullet in self._bullets:
+                bullet.lifetime -= dt
+                if bullet.lifetime <= 0:
+                    dead_bullets.append(bullet)
+                    continue
+                bullet.position[0] += bullet.direction[0] * bullet.speed * dt
+                bullet.position[1] += bullet.direction[1] * bullet.speed * dt
+                bullet_update.append(bullet.as_dict())
 
-        # remove dead bullets
-        for bullet in dead_bullets:
-            self._bullets.remove(bullet)
+            # remove dead bullets
+            for bullet in dead_bullets:
+                self._bullets.remove(bullet)
 
-        # send bullet updates if some were updated or removed
-        if len(bullet_update) > 0 or len(dead_bullets) > 0:
-            self.send_all(PacketId.BULLETS, bullet_update)
+            # send bullet updates if some were updated or removed
+            if len(bullet_update) > 0 or len(dead_bullets) > 0:
+                self.send_all(PacketId.BULLETS, bullet_update)
 
-        with lock:
             # loop through the Acks queue to see if we need to send more acks
             if len(self._ack_needed):
                 resend_acks = []
@@ -325,10 +341,9 @@ class GameServer:
     
     def client_disconnected(self, msg, socket):
         player = self._clients[self._socket_to_player[socket]]
-        with lock:
-            print("Player {} has disconnected.".format(player.uuid))
-            if player.uuid in self._clients and player.uuid not in self._clients_to_remove:
-                self._clients_to_remove.append(player.uuid)
+        print("Player {} has disconnected.".format(player.uuid))
+        if player.uuid in self._clients and player.uuid not in self._clients_to_remove:
+            self._clients_to_remove.append(player.uuid)
 
     def player_movement(self, msg, socket):
         if socket not in self._socket_to_player:
