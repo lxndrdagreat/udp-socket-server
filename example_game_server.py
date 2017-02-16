@@ -258,9 +258,9 @@ class GameServer:
                 self._stat_sent = 0
                 avg = sent / self._stat_time
                 print("AVG MESSAGES SENT PER SECOND: {}".format(avg))
-                sent = self._stat_sent_bandwidth
+                band = self._stat_sent_bandwidth
                 self._stat_sent_bandwidth = 0
-                avg = sent / self._stat_time
+                avg = band / self._stat_time
                 amnt = "bytes"
                 if avg > 1000000:
                     avg /= 1000
@@ -270,6 +270,9 @@ class GameServer:
                     avg /= 1000
                     amnt = "kilobytes"
                 print("AVG BANDWIDTH SENT PER SECOND: {} {}".format(avg, amnt))
+                if len(self._clients) > 0:
+                    avg = (sent / self._stat_time) / len(self._clients)
+                    print ("AVG MESSAGES PER PLAYER: {}".format(avg))
 
         with lock:
             # remove disconnected players
