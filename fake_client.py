@@ -16,12 +16,12 @@ import random
 import threading
 import msgpack
 
-ARGS = argparse.ArgumentParser(description="UDP Echo Client Example")
+ARGS = argparse.ArgumentParser(description="UDP Fake Player")
 ARGS.add_argument(
     '--count',
     action="store",
     dest="count",
-    default='64',
+    default='5',
     help='How many fake players to spawn. Each player is a thread.')
 
 ARGS.add_argument(
@@ -32,9 +32,24 @@ ARGS.add_argument(
     help="How often the AI changes directions."
 )
 
+ARGS.add_argument(
+    '--host',
+    action="store",
+    dest="host",
+    default="localhost",
+    help="Address of server to connect to."
+)
 
-def client(mv_speed):
-    HOST, PORT = "localhost", 9999
+ARGS.add_argument(
+    '--port',
+    action="store",
+    dest="port",
+    default="9999",
+    help="Server port to connect to."
+)
+
+
+def client(mv_speed, host_port):
 
     # SOCK_DGRAM is the socket type to use for UDP sockets
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -59,7 +74,7 @@ def client(mv_speed):
 
         # send first message to the server to tell it we want to join.
         data = message_protocol.create(PacketId.JOIN, "hello, world", 0)
-        sock.sendto(data, (HOST, PORT))
+        sock.sendto(data, host_port)
 
         while True:
 
@@ -73,7 +88,7 @@ def client(mv_speed):
                     movement[0] = random.randrange(-1, 2)
                     movement[1] = random.randrange(-1, 2)
                     data = message_protocol.create(PacketId.PLAYER_INPUT, json.dumps(movement), 0)
-                    sock.sendto(data, (HOST, PORT))
+                    sock.sendto(data, host_port)
                     movement_timer = movement_time
 
             try:
@@ -93,7 +108,7 @@ def client(mv_speed):
                     if needs_ack:
                         # send Ack
                         data = message_protocol.create(PacketId.ACK, json.dumps([sequence_number]), 0)
-                        sock.sendto(data, (HOST, PORT))
+                        sock.sendto(data, host_port)
             except:
                 pass
                 
@@ -106,13 +121,15 @@ def client(mv_speed):
 if __name__ == '__main__':
     args = ARGS.parse_args()
 
+    host_port = (args.host, int(args.port))
+
     num_clients = int(args.count)
     print("Spawning {} clients.".format(num_clients))
     movement_speed = float(args.speed)
     client_threads = []
     for i in range(0, num_clients):
         print("starting client {}".format(i))
-        client_thread = threading.Thread(target=client, args=[movement_speed])
+        client_thread = threading.Thread(target=client, args=[movement_speed, host_port])
         client_thread.daemon = True
         client_thread.start()
         client_threads.append(client_thread)
