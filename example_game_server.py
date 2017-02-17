@@ -20,6 +20,7 @@ class PacketId(Enum):
     JOIN = 0
     WELCOME = 1
     ACK = 2
+    HEARTBEAT = 3
     PLAYER_INFO = 10
     PLAYER_UPDATES = 11
     PLAYER_LEFT = 12
@@ -176,6 +177,7 @@ class GameServer:
         self._socket_server.on(PacketId.PLAYER_INPUT, self.player_movement)
         self._socket_server.on(PacketId.ACK, self.received_ack)
         self._socket_server.on(PacketId.PLAYER_FIRE, self.player_fire)
+        self._socket_server.on(PacketId.HEARTBEAT, self.received_heartbeat)
 
         self._server_thread = threading.Thread(target=self._socket_server.serve_forever)
         self._server_thread.daemon = True
@@ -391,6 +393,9 @@ class GameServer:
         # create bullet
         bullet = Bullet(player.position, player.facing, player.uuid)
         self._bullets.append(bullet)
+
+    def received_heartbeat(self, msg, socket):
+        pass
 
     def received_ack(self, msg, socket):
         if socket not in self._socket_to_player:
