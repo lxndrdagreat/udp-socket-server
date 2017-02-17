@@ -37,3 +37,4 @@ Messages are formatted as follows:
 - https://www.gamedev.net/topic/328867-udp-with-ack/
 - http://fabiensanglard.net/quake3/network.php
 - https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking
+- https://www.howtogeek.com/225487/what-is-the-difference-between-127.0.0.1-and-0.0.0.0/
