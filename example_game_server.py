@@ -141,7 +141,7 @@ class GameServer:
         self._player_id_number = 0
 
         # Binding Address
-        self._server_address = ('127.0.0.1', int(settings.port))
+        self._server_address = (settings.host, int(settings.port))
 
         self._socket_server = None
         self._server_thread = None
@@ -182,7 +182,7 @@ class GameServer:
         self._server_thread.daemon = True
         self._server_thread.start()
 
-        print("Serving on {}".format(self._server_address))
+        print("Serving on {}".format(self._socket_server.socket.getsockname()))
 
         # for a fixed update tick
         last_time = time.time()
@@ -405,6 +405,15 @@ class GameServer:
                     self._ack_needed.remove(ackInfo)                
 
 ARGS = argparse.ArgumentParser(description="Example Game Server")
+
+ARGS.add_argument(
+    '--host',
+    action="store",
+    dest="host",
+    default="",
+    help="Address to bind to."
+)
+
 ARGS.add_argument(
     '--port',
     action="store",
