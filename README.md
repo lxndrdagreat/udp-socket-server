@@ -42,17 +42,7 @@ Messages are formatted as follows:
 ## Known Issues
 
 ```
-Exception happened during processing of request from ('71.12.73.70', 59414)
-New client: ('71.12.73.70', 59414) is now player 106
 Traceback (most recent call last):
-  File "/usr/lib/python3.5/socketserver.py", line 625, in process_request_thread
-    self.finish_request(request, client_address)
-  File "/root/udp-socket-server/server.py", line 32, in finish_request
-    self.message_received(request[0], socket_address)
-  File "/root/udp-socket-server/server.py", line 140, in message_received
-    self._trigger(message_type, payload, socket_address)
-  File "/root/udp-socket-server/server.py", line 104, in _trigger
-    self.handlers[event](data, addr)
   File "example_game_server.py", line 381, in player_movement
     player = self._clients[self._socket_to_player[socket]]
 KeyError: 94
