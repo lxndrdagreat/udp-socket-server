@@ -13,22 +13,52 @@ Then start as many copies of `example_echo_client.py` as you want.
 
 There is a simple "game" (term used loosely) server example.
 
+### The Server
+
 Run it via `example_game_server.py`.
+
+### Stress Testing Player Connections
+
+The Python script `fake_client.py` is a threaded application that creates `n`
+ clients and has them connect to the server and spam movement commands.
+ 
+ Run it like so:
+ 
+ ```commandline
+usage: fake_client.py [-h] [--count COUNT] [--speed SPEED] [--host HOST]
+                      [--port PORT]
+
+UDP Fake Player
+
+optional arguments:
+  -h, --help     show this help message and exit
+  --count COUNT  How many fake players to spawn. Each player is a thread.
+  --speed SPEED  How often the AI changes directions.
+  --host HOST    Address of server to connect to. Default is 'localhost'.
+  --port PORT    Server port to connect to. Defaults to 9999.
+```
+
+### Player Client
+
+There is another learning project, built with Unity and C#, that is a player client.
+Check it out [at its github](https://github.com/lxndrdagreat/udp-unity-tests).
 
 ### Message Protocol
 
 The MessageProtocol for the example game server uses [msgpack](http://msgpack.org/index.html).
 
-Messages are formatted as follows:
+Messages are created as a list, formatted as follows:
 
 ```
-{
-  "t": int, // The packet's type ID.
-  "p": string, // The payload, encoded as a string
-  "a": bool, // Is "ack" needed? True/False as a 1 or 0 
-  "s": int // packet's sequence number
-}
+[
+    Packet ID (integer),
+    Sequence Number (integer),
+    Needs "ack" (bool, 0 or 1),
+    payload (technically could be anything)
+]
 ```
+
+That message is then fed through `msgpack` which returns bytes, which are sent out.
 
 ## References
 

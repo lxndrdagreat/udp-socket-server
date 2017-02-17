@@ -135,6 +135,6 @@ class EventServer(ThreadedUDPServer):
         else:
             self._heartbeats[socket_address] = 0
         message = self._message_protocol.parse(data)
-        message_type = message['t']
-        payload = message['p']
+        message_type = message[0]
+        payload = message[3]
         self._trigger(message_type, payload, socket_address)

@@ -21,7 +21,7 @@ ARGS.add_argument(
     '--count',
     action="store",
     dest="count",
-    default='32',
+    default='1',
     help='How many fake players to spawn. Each player is a thread.')
 
 ARGS.add_argument(
@@ -87,7 +87,7 @@ def client(mv_speed, host_port):
                 if movement_timer < 0:
                     movement[0] = random.randrange(-1, 2)
                     movement[1] = random.randrange(-1, 2)
-                    data = message_protocol.create(PacketId.PLAYER_INPUT, json.dumps(movement), 0)
+                    data = message_protocol.create(PacketId.PLAYER_INPUT, message_protocol.pack_data(movement), 0)
                     sock.sendto(data, host_port)
                     movement_timer = movement_time
 
@@ -95,21 +95,23 @@ def client(mv_speed, host_port):
                 message, address = sock.recvfrom(8192)
                 if message:
                     parsed = message_protocol.parse(message)
-                    message_type = parsed['t']
-                    payload = parsed['p']
-                    needs_ack = True if parsed['a'] == 1 else False
-                    sequence_number = parsed['s']
+                    message_type = parsed[0]
+                    # print("Got message: {}".format(parsed))
+                    payload = parsed[3]
+                    needs_ack = True if parsed[2] == 1 else False
+                    sequence_number = parsed[1]
 
                     if message_type == PacketId.WELCOME:
                         welcomed = True
-                        my_player = json.loads(payload)
+                        my_player = message_protocol.unpack_data(payload)
                         print("me: {}".format(my_player))
 
                     if needs_ack:
                         # send Ack
-                        data = message_protocol.create(PacketId.ACK, json.dumps([sequence_number]), 0)
+                        data = message_protocol.create(PacketId.ACK, message_protocol.pack_data([sequence_number]), 0)
                         sock.sendto(data, host_port)
-            except:
+            except OSError as err:
+                # print("we have a problem: {}".format(err))
                 pass
                 
     except KeyboardInterrupt:

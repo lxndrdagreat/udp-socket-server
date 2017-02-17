@@ -31,21 +31,20 @@ class PacketId(Enum):
 
 class PacketProtocol(MessageProtocol):
     def create(self, msg_type, payload, sequence_number=0, needs_ack=False):
-        message = {
-            "t": msg_type.value,
-            "p": payload,
-            "s": sequence_number,
-            "a": 1 if needs_ack else 0
-        }
-        # print(message)
+        message = [msg_type.value, sequence_number, 1 if needs_ack else 0, payload]
         packed = msgpack.packb(message)
         return packed
 
     def parse(self, message):        
-        unpacked = msgpack.unpackb(message, encoding='utf-8')
-        # print(unpacked)
-        unpacked['t'] = PacketId(int(unpacked['t']))
+        unpacked = msgpack.unpackb(message)
+        unpacked[0] = PacketId(int(unpacked[0]))
         return unpacked
+
+    def pack_data(self, data):
+        return msgpack.packb(data, encoding='utf-8')
+
+    def unpack_data(self, data):
+        return msgpack.unpackb(data, encoding='utf-8')
 
 
 class PlayerClient:
@@ -282,7 +281,7 @@ class GameServer:
                 player = self._clients[player_id]
 
                 # send player_left message to everyone else
-                self.send_all(PacketId.PLAYER_LEFT, json.dumps(player.uuid))
+                self.send_all(PacketId.PLAYER_LEFT, self.protocol.pack_data(player.uuid))
 
                 del self._clients[player_id]
 
@@ -305,7 +304,7 @@ class GameServer:
 
             if len(updated_players) > 0:
                 # print("sending player updates for {} players".format(len(updated_players)))
-                self.send_all(PacketId.PLAYER_UPDATES, json.dumps(updated_players))
+                self.send_all(PacketId.PLAYER_UPDATES, self.protocol.pack_data(updated_players))
 
             # update bullets
             dead_bullets = []
@@ -325,7 +324,7 @@ class GameServer:
 
             # send bullet updates if some were updated or removed
             if len(bullet_update) > 0 or len(dead_bullets) > 0:
-                self.send_all(PacketId.BULLETS, bullet_update)
+                self.send_all(PacketId.BULLETS, self.protocol.pack_data(bullet_update))
 
             # loop through the Acks queue to see if we need to send more acks
             if len(self._ack_needed):
@@ -363,10 +362,10 @@ class GameServer:
 
             # send welcome
             # print(player.as_dict())
-            self.send(player.uuid, PacketId.WELCOME, json.dumps(player.as_dict()), True)
+            self.send(player.uuid, PacketId.WELCOME, self.protocol.pack_data(player.as_dict()), True)
 
             # send world, require acknowledge
-            self.send(player.uuid, PacketId.WORLD_INFO, json.dumps(self._world.as_dict()), True)
+            self.send(player.uuid, PacketId.WORLD_INFO, self.protocol.pack_data(self._world.as_dict()), True)
     
     def client_disconnected(self, msg, socket):
         player = self._clients[self._socket_to_player[socket]]
@@ -379,7 +378,7 @@ class GameServer:
             return        
 
         player = self._clients[self._socket_to_player[socket]]
-        movement = json.loads(msg)
+        movement = self.protocol.unpack_data(msg)
         # print("Got player input for {}: {}".format(player.uuid, movement))
         player.set_movement(movement)
 
@@ -396,7 +395,7 @@ class GameServer:
     def received_ack(self, msg, socket):
         if socket not in self._socket_to_player:
             return
-        acks = json.loads(msg)
+        acks = self.protocol.unpack_data(msg)
         with lock:
             for ack in acks:
                 ackInfo = next((a for a in self._ack_needed if a.sequence_number == ack), None)
