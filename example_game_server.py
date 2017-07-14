@@ -167,7 +167,7 @@ class GameServer:
 
     def start(self):
         self._socket_server = EventServer(self._server_address)
-        self._socket_server.heartbeat_rate = 10
+        self._socket_server.heartbeat_rate = 35
         self._socket_server._message_protocol = PacketProtocol()
 
         # set up handlers
